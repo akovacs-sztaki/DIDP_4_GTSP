@@ -29,6 +29,17 @@ def create_model(n, nClass, nodes, edges, classes):
 #    distance = model.add_float_table(distance_matrix)
     distance = model.add_int_table(distance_matrix)
     
+    shortest_distance_matrix = copy.deepcopy(distance_matrix)
+    for k in range(1, n):
+        for i in range(n):
+            for j in range(n):
+                d = shortest_distance_matrix[i][k] + shortest_distance_matrix[k][j]
+                if shortest_distance_matrix[i][j] > d:
+                    shortest_distance_matrix[i][j] = d
+    shortest_distance = model.add_int_table(shortest_distance_matrix)
+    
+    
+    
     con = [classes[i] for i in nodes]
     class_of_node = model.add_int_table(con)
 
@@ -85,14 +96,16 @@ def create_model(n, nClass, nodes, edges, classes):
     )
     model.add_transition(return_to_depot)
 
+    # Dual bound: distance from retun location
+    model.add_dual_bound((returnToLocation != n).if_then_else(shortest_distance[location,returnToLocation], 0))
    
-    # Distance to class k from any other class
-    dtc = [min(min  (distance_matrix[i][j] for i in nodes if (classes[i] != k)) for j in nodes if classes[j]==k) for k in range(0,nClass)]
-    min_distance_to_class = model.add_int_table(dtc)
-    
     # Distance to node i from any node in another class
     dtn = [min(distance_matrix[i][j] for i in nodes if (classes[i] != classes[j])) for j in nodes]
     min_distance_to_node = model.add_int_table(dtn)
+
+    # Distance to class k from any other class
+    dtc = [min(dtn[j] for j in nodes if classes[j]==k) for k in range(nClass)]
+    min_distance_to_class = model.add_int_table(dtc)
 
     # Bound: distance to unvistited classes + distance back to start node
     model.add_dual_bound(min_distance_to_class[unvisitedClasses] + (returnToLocation != n).if_then_else(min_distance_to_node[returnToLocation], 0))
